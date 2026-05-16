@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SRT 자막 번역기</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:      #f5f6fa;
+    --surface: #ffffff;
+    --card:    #ffffff;
+    --border:  #e0e3eb;
+    --acc:     #1a73e8;
+    --acc2:    #e8344a;
+    --fg:      #1a1d28;
+    --muted:   #6b7280;
+    --green:   #16a34a;
+    --yellow:  #d97706;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* 배경 그리드 */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(26,115,232,.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(26,115,232,.05) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 32px 20px 60px;
+  }
+
+  /* 헤더 */
+  header {
+    margin-bottom: 36px;
+    animation: fadeUp .6s ease both;
+  }
+  .badge {
+    display: inline-block;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--acc);
+    border: 1px solid var(--acc);
+    padding: 3px 10px;
+    border-radius: 2px;
+    margin-bottom: 14px;
+    text-transform: uppercase;
+  }
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(28px, 7vw, 40px);
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -1px;
+  }
+  h1 span { color: var(--acc); }
+  .quote {
+    margin-top: 14px;
+    font-size: 13px;
+    color: var(--acc);
+    font-style: italic;
+    line-height: 1.8;
+  }
+  .quote-kr {
+    font-size: 12px;
+    color: var(--muted);
+    font-style: normal;
+  }
+  .quote-author {
+    font-size: 11px;
+    color: var(--muted);
+    font-style: normal;
+    letter-spacing: 1px;
+  }
+  .sub {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: .5px;
+  }
+
+  /* 카드 */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 14px;
+    animation: fadeUp .6s ease both;
+  }
+  .card:nth-child(2) { animation-delay: .1s; }
+  .card:nth-child(3) { animation-delay: .2s; }
+  .card:nth-child(4) { animation-delay: .3s; }
+
+  .label {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  /* 파일 드롭존 */
+  .dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    padding: 32px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+    position: relative;
+  }
+  .dropzone:hover, .dropzone.over {
+    border-color: var(--acc);
+    background: rgba(0,229,255,.04);
+  }
+  .dropzone input[type=file] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+  .dropzone-icon {
+    font-size: 32px;
+    margin-bottom: 10px;
+  }
+  .dropzone-text {
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .dropzone-text strong {
+    display: block;
+    color: var(--fg);
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+  .file-selected {
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--green);
+    word-break: break-all;
+  }
+
+  /* 인풋 */
+  .input-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  input[type=text], input[type=password] {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--fg);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    padding: 10px 14px;
+    outline: none;
+    transition: border-color .2s;
+    width: 100%;
+  }
+  input:focus { border-color: var(--acc); }
+
+  .toggle-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    font-size: 11px;
+    padding: 10px 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color .2s;
+    font-family: 'DM Mono', monospace;
+  }
+  .toggle-btn:hover { color: var(--fg); }
+
+  .key-status {
+    margin-top: 8px;
+    font-size: 11px;
+  }
+  .key-status.ok  { color: var(--green); }
+  .key-status.warn{ color: var(--yellow);}
+
+  /* 진행 영역 */
+  .progress-wrap { display: none; }
+  .progress-wrap.show { display: block; }
+
+  .prog-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 12px;
+  }
+  .prog-pct { color: var(--acc); font-weight: 500; }
+
+  .progress-bar {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--acc), #7b61ff);
+    border-radius: 2px;
+    transition: width .4s ease;
+    width: 0%;
+  }
+
+  /* 로그 */
+  .log-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    height: 180px;
+    overflow-y: auto;
+    font-size: 11px;
+    line-height: 1.7;
+    scroll-behavior: smooth;
+  }
+  .log-box::-webkit-scrollbar { width: 4px; }
+  .log-box::-webkit-scrollbar-track { background: transparent; }
+  .log-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .log-line { color: var(--muted); }
+  .log-line.ok   { color: var(--green); }
+  .log-line.warn { color: var(--yellow); }
+  .log-line.err  { color: var(--acc2); }
+  .log-line.info { color: var(--acc); }
+
+  /* 버튼 */
+  .btn-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 4px;
+  }
+  .btn {
+    flex: 1;
+    padding: 14px;
+    border: none;
+    border-radius: 8px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: .5px;
+    cursor: pointer;
+    transition: opacity .2s, transform .1s;
+  }
+  .btn:active { transform: scale(.98); }
+  .btn:disabled { opacity: .35; cursor: not-allowed; }
+  .btn-primary {
+    background: var(--acc);
+    color: #ffffff;
+  }
+  .btn-stop {
+    background: var(--card);
+    border: 1px solid var(--acc2);
+    color: var(--acc2);
+    flex: 0 0 auto;
+    padding: 14px 20px;
+  }
+  .btn-dl {
+    background: var(--green);
+    color: #000;
+    display: none;
+  }
+  .btn-dl.show { display: flex; align-items: center; justify-content: center; gap: 6px; }
+
+  /* 완료 배너 */
+  .done-banner {
+    display: none;
+    background: rgba(57,217,138,.08);
+    border: 1px solid rgba(57,217,138,.3);
+    border-radius: 8px;
+    padding: 14px 18px;
+    font-size: 13px;
+    color: var(--green);
+    margin-bottom: 14px;
+    align-items: center;
+    gap: 10px;
+  }
+  .done-banner.show { display: flex; }
+
+  @keyframes fadeUp {
+    from { opacity:0; transform: translateY(16px); }
+    to   { opacity:1; transform: translateY(0); }
+  }
+
+  /* 모바일 조정 */
+  @media (max-width: 400px) {
+    .btn { font-size: 13px; padding: 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="badge">Gemini 2.5 Flash · 무료</div>
+    <h1>SRT<br><span>자막번역기</span></h1>
+    <p class="sub">영어 → 한국어 · 문맥 유지 · 타임스탬프 보존</p>
+  </header>
+
+  <!-- ① 파일 선택 -->
+  <div class="card">
+    <div class="label">01 · SRT 파일 선택</div>
+    <div class="dropzone" id="dropzone">
+      <input type="file" id="fileInput" accept=".srt">
+      <div class="dropzone-icon">📄</div>
+      <div class="dropzone-text">
+        <strong>파일을 탭하거나 드래그해서 올려주세요</strong>
+        .srt 파일만 지원
+      </div>
+      <div class="file-selected" id="fileName"></div>
+    </div>
+  </div>
+
+  <!-- ② API 키 -->
+  <div class="card">
+    <div class="label">02 · Gemini API Key</div>
+    <div class="input-row">
+      <input type="password" id="apiKey" placeholder="AIza...">
+      <button class="toggle-btn" id="toggleKey">표시</button>
+    </div>
+    <div class="key-status" id="keyStatus"></div>
+  </div>
+
+  <!-- ③ 진행 -->
+  <div class="card progress-wrap" id="progressCard">
+    <div class="label">03 · 번역 진행</div>
+    <div class="prog-header">
+      <span id="progText">준비 중...</span>
+      <span class="prog-pct" id="progPct">0%</span>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progFill"></div>
+    </div>
+    <div class="log-box" id="logBox"></div>
+  </div>
+
+  <!-- 완료 배너 -->
+  <div class="done-banner" id="doneBanner">
+    <span>✔</span>
+    <span id="doneText">번역 완료!</span>
+  </div>
+
+  <!-- 버튼 -->
+  <div class="btn-row">
+    <button class="btn btn-primary" id="startBtn" onclick="startTranslation()">▶ 번역 시작</button>
+    <button class="btn btn-stop"   id="stopBtn"  onclick="stopTranslation()" disabled>■ 중단</button>
+  </div>
+
+  <div class="btn-row" style="margin-top:10px;">
+    <button class="btn btn-dl" id="dlBtn" onclick="downloadResult()">⬇ 번역 파일 저장</button>
+  </div>
+
+</div>
+
+<script>
+// ── 상태 ──────────────────────────────────────
+let srtContent   = '';
+let srtFilename  = '';
+let translatedSRT= '';
+let stopFlag     = false;
+const CHUNK      = 50;
+const DELAY_MS   = 4000;
+const MODEL      = 'gemini-2.5-flash';
+
+// ── 파일 선택 ──────────────────────────────────
+const fileInput = document.getElementById('fileInput');
+const dropzone  = document.getElementById('dropzone');
+
+fileInput.addEventListener('change', e => loadFile(e.target.files[0]));
+
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('over'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('over'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('over');
+  if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+
+function loadFile(file) {
+  if (!file || !file.name.endsWith('.srt')) {
+    alert('.srt 파일만 지원합니다.');
+    return;
+  }
+  srtFilename = file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    srtContent = e.target.result;
+    document.getElementById('fileName').textContent = '✔ ' + file.name;
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+// ── API 키 표시/숨기기 ──────────────────────────
+document.getElementById('toggleKey').addEventListener('click', function() {
+  const inp = document.getElementById('apiKey');
+  if (inp.type === 'password') { inp.type = 'text';     this.textContent = '숨기기'; }
+  else                         { inp.type = 'password'; this.textContent = '표시'; }
+});
+
+document.getElementById('apiKey').addEventListener('input', function() {
+  const st = document.getElementById('keyStatus');
+  if (this.value.startsWith('AIza') && this.value.length > 20) {
+    st.textContent = '✔ API 키 확인됨 · 저장됨';
+    st.className = 'key-status ok';
+    localStorage.setItem('gemini_api_key', this.value);
+  } else if (this.value.length > 0) {
+    st.textContent = '⚠ 올바른 Gemini API 키를 입력하세요';
+    st.className = 'key-status warn';
+  } else {
+    st.textContent = '';
+    localStorage.removeItem('gemini_api_key');
+  }
+});
+
+// 페이지 로드 시 저장된 키 자동 불러오기
+window.addEventListener('load', function() {
+  const saved = localStorage.getItem('gemini_api_key');
+  const st = document.getElementById('keyStatus');
+  if (saved) {
+    document.getElementById('apiKey').value = saved;
+    st.textContent = '✔ 저장된 API 키 자동 로드됨';
+    st.className = 'key-status ok';
+  }
+});
+
+// ── SRT 파싱 ────────────────────────────────────
+function parseSRT(text) {
+  const blocks = [];
+  const parts  = text.trim().split(/\n\s*\n/);
+  for (const part of parts) {
+    const lines = part.trim().split('\n');
+    if (lines.length < 3) continue;
+    if (!lines[1].includes('-->')) continue;
+    blocks.push({
+      index:      lines[0].trim(),
+      timestamp:  lines[1].trim(),
+      text:       lines.slice(2).join('\n').trim(),
+      translated: null
+    });
+  }
+  return blocks;
+}
+
+function buildSRT(blocks) {
+  return blocks.map(b =>
+    `${b.index}\n${b.timestamp}\n${b.translated ?? b.text}`
+  ).join('\n\n') + '\n';
+}
+
+// ── 프롬프트 ────────────────────────────────────
+function buildPrompt(chunk) {
+  const numbered = chunk.map((s,i) => `[${i+1}] ${s.text}`).join('\n');
+  return `당신은 영화/드라마 전문 자막 번역가입니다.
+
+아래 영어 자막을 한국어로 번역해주세요.
+
+규칙:
+1. 자연스러운 구어체, 실제 한국 영화/드라마 자막 스타일
+2. [숫자] 번호는 절대 바꾸지 말고 그대로 유지
+3. 각 번호의 텍스트만 번역, 번호 순서 유지
+4. 번호가 없는 텍스트 추가 금지
+5. 줄바꿈이 있으면 번역 결과에도 동일하게 유지
+6. 앞뒤 자막 문맥을 고려해서 자연스럽게 번역
+
+영어 자막:
+${numbered}
+
+한국어 번역 결과 (반드시 [숫자] 형식 그대로):`;
+}
+
+function parseResponse(text, count) {
+  const result = {};
+  const re = /\[(\d+)\]\s*([\s\S]*?)(?=\[\d+\]|$)/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const n = parseInt(m[1]);
+    if (n >= 1 && n <= count) result[n] = m[2].trim();
+  }
+  return Array.from({length: count}, (_, i) => result[i+1] ?? `[번역오류#${i+1}]`);
+}
+
+// ── 로그 ────────────────────────────────────────
+function log(msg, type='') {
+  const box  = document.getElementById('logBox');
+  const line = document.createElement('div');
+  line.className = 'log-line ' + type;
+  line.textContent = msg;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+}
+
+function setProgress(done, total) {
+  const pct = Math.round(done / total * 100);
+  document.getElementById('progFill').style.width = pct + '%';
+  document.getElementById('progPct').textContent  = pct + '%';
+  document.getElementById('progText').textContent =
+    `청크 ${done} / ${total}`;
+}
+
+// ── Gemini API 호출 ──────────────────────────────
+async function callGemini(apiKey, prompt, retries=3) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`;
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          contents: [{parts: [{text: prompt}]}],
+          generationConfig: {temperature: 0.3, maxOutputTokens: 8192}
+        })
+      });
+      if (res.status === 429) {
+        const wait = 30 * (attempt + 1);
+        log(`  ⚠ 한도 초과. ${wait}초 대기...`, 'warn');
+        await sleep(wait * 1000);
+        continue;
+      }
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error?.message || res.statusText);
+      }
+      const data = await res.json();
+      return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    } catch(e) {
+      if (attempt < retries - 1) {
+        log(`  ⚠ 오류 (시도 ${attempt+1}): ${e.message}`, 'warn');
+        await sleep(5000);
+      } else throw e;
+    }
+  }
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── 메인 번역 ────────────────────────────────────
+async function startTranslation() {
+  const apiKey = document.getElementById('apiKey').value.trim();
+
+  if (!srtContent) { alert('SRT 파일을 먼저 선택해주세요.'); return; }
+  if (!apiKey)     { alert('API 키를 입력해주세요.\n발급: https://aistudio.google.com/app/apikey'); return; }
+
+  stopFlag = false;
+  translatedSRT = '';
+
+  // UI 초기화
+  document.getElementById('startBtn').disabled = true;
+  document.getElementById('stopBtn').disabled  = false;
+  document.getElementById('progressCard').classList.add('show');
+  document.getElementById('doneBanner').classList.remove('show');
+  document.getElementById('dlBtn').classList.remove('show');
+  document.getElementById('logBox').innerHTML = '';
+
+  const blocks = parseSRT(srtContent);
+  const total  = blocks.length;
+  const chunks = [];
+  for (let i = 0; i < total; i += CHUNK)
+    chunks.push(blocks.slice(i, i + CHUNK));
+
+  log(`✅ 자막 ${total}개 파싱 완료`, 'ok');
+  log(`🔄 ${chunks.length}개 청크로 번역 시작\n`, 'info');
+  setProgress(0, chunks.length);
+
+  try {
+    for (let ci = 0; ci < chunks.length; ci++) {
+      if (stopFlag) { log('■ 번역 중단됨', 'warn'); break; }
+
+      const chunk  = chunks[ci];
+      const startN = ci * CHUNK + 1;
+      const endN   = Math.min((ci+1) * CHUNK, total);
+
+      log(`  [${ci+1}/${chunks.length}] 자막 ${startN}~${endN}번...`);
+
+      let translations;
+      try {
+        const resp = await callGemini(apiKey, buildPrompt(chunk));
+        translations = parseResponse(resp, chunk.length);
+        log(`  ✔ 완료`, 'ok');
+      } catch(e) {
+        log(`  ✗ 실패: ${e.message} → 원문 유지`, 'err');
+        translations = chunk.map(s => s.text);
+      }
+
+      chunk.forEach((b, i) => b.translated = translations[i]);
+      setProgress(ci + 1, chunks.length);
+
+      if (ci < chunks.length - 1 && !stopFlag)
+        await sleep(DELAY_MS);
+    }
+
+    if (!stopFlag) {
+      translatedSRT = buildSRT(blocks);
+      const outName = srtFilename.replace('.srt', '_ko.srt');
+      document.getElementById('doneBanner').classList.add('show');
+      document.getElementById('doneText').textContent =
+        `번역 완료! → ${outName}`;
+      document.getElementById('dlBtn').classList.add('show');
+      log(`\n✅ 번역 완료! 아래 버튼으로 저장하세요.`, 'ok');
+    }
+
+  } catch(e) {
+    log(`\n❌ 오류: ${e.message}`, 'err');
+    alert('오류 발생: ' + e.message);
+  } finally {
+    document.getElementById('startBtn').disabled = false;
+    document.getElementById('stopBtn').disabled  = true;
+  }
+}
+
+function stopTranslation() {
+  stopFlag = true;
+}
+
+function downloadResult() {
+  if (!translatedSRT) return;
+  const outName = srtFilename.replace('.srt', '_ko.srt');
+  const blob = new Blob([translatedSRT], {type: 'text/plain;charset=utf-8'});
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = outName;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+</script>
+</body>
+</html>
